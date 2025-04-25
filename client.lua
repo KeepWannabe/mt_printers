@@ -64,7 +64,57 @@ local openPrinter = function()
     })
     if input then
         if not input[1] or not input[2] or not input[3] then return end
-        if not input[2]:match(locale('input_url_match')) then notify(locale('notify_wrong_url'), 'error') return end
+        function isValidImageUrl(url)
+            -- Get whitelist from locale
+            local domainsString = locale('whitelist_domains')
+            local extensionsString = locale('whitelist_extensions')
+            
+            -- Parse domains from comma-separated string
+            local validDomains = {}
+            for domain in string.gmatch(domainsString, "([^,]+)") do
+                validDomains[#validDomains + 1] = domain:match("^%s*(.-)%s*$") -- Trim whitespace
+            end
+            
+            -- Parse extensions from comma-separated string
+            local validExtensions = {}
+            for ext in string.gmatch(extensionsString, "([^,]+)") do
+                validExtensions[#validExtensions + 1] = ext:match("^%s*(.-)%s*$") -- Trim whitespace
+            end
+            
+            -- Check protocol
+            if not string.match(url, "^https?://") then
+                return false
+            end
+            
+            -- Check domain
+            local domain = string.match(url, "^https?://([^/]+)")
+            local isDomainValid = false
+            for _, validDomain in ipairs(validDomains) do
+                if string.find(domain, validDomain, 1, true) then
+                    isDomainValid = true
+                    break
+                end
+            end
+            if not isDomainValid then
+                return false
+            end
+            
+            -- Check file extension
+            local hasValidExtension = false
+            for _, ext in ipairs(validExtensions) do
+                if string.match(url, "%." .. ext .. "$") or string.match(url, "%." .. ext .. "%?") then
+                    hasValidExtension = true
+                    break
+                end
+            end
+            
+            return hasValidExtension
+        end
+
+        if not isValidImageUrl(input[2]) then 
+            notify(locale('notify_wrong_url'), 'error') 
+            return 
+        end
         if exports.ox_inventory:GetItemCount('printer_paper') < input[3] then notify(locale('notify_no_paper'), 'error') return end
         if lib.progressBar({ label = locale('print_progress'), duration = 5000 }) then
             lib.callback.await('mt_printers:server:printDocument', false, input)
